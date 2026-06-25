@@ -1,0 +1,50 @@
+{
+  "name": "computer-use-agent",
+  "version": "1.0.0",
+  "description": "Desktop application for Computer-Use Agent",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "dev:win": "set NODE_ENV=development && electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "computer-use",
+    "agent",
+    "ai",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.cua.desktop",
+    "productName": "Computer-Use Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "frontend/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "frontend/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "frontend/icon.png"
+    }
+  }
+}
