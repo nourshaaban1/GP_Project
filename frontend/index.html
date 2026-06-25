@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src ws://localhost:8000 http://localhost:8000; style-src 'self' 'unsafe-inline'; script-src 'self';">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src ws://localhost:8000 http://localhost:8000; style-src 'self' 'unsafe-inline'; script-src 'self';">
     <title>Computer-Use Agent</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1 class="title">🖥️ Computer-Use Agent</h1>
+                <h1 class="title">Notive</h1>
                 <div class="connection-status" id="connectionStatus">
                     <span class="status-dot"></span>
                     <span class="status-text">Disconnected</span>
@@ -26,7 +29,7 @@
                 <!-- Messages will be dynamically added here -->
                 <div class="welcome-message">
                     <div class="welcome-icon">🤖</div>
-                    <h2>Welcome to Computer-Use Agent</h2>
+                    <h2>Welcome to Notive</h2>
                     <p>I can control a computer to help you with various tasks. Try asking me to:</p>
                     <ul>
                         <li>Open a browser and search for something</li>
@@ -52,12 +55,8 @@
         <!-- Input Container -->
         <footer class="input-container">
             <div class="input-wrapper">
-                <textarea 
-                    id="messageInput" 
-                    placeholder="Type your instruction for the agent..."
-                    rows="1"
-                    disabled
-                ></textarea>
+                <textarea id="messageInput" placeholder="Type your instruction for the agent..." rows="1"
+                    disabled></textarea>
                 <button id="sendButton" class="send-button" disabled>
                     <span class="send-icon">➤</span>
                 </button>
@@ -70,4 +69,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

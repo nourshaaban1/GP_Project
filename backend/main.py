@@ -6,8 +6,8 @@ Provides:
 - GET /download/{filename} for file downloads
 - CORS support for Electron frontend
 """
-
 import os
+print(os.getcwd())
 import logging
 import asyncio
 from pathlib import Path
@@ -19,10 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import json
 
-try:
-    from .agent_service import AgentService
-except ImportError:
-    from agent_service import AgentService
+from agent_service import AgentService
 
 # Configure logging
 logging.basicConfig(

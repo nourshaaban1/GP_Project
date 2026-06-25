@@ -11,8 +11,8 @@ import logging
 from typing import AsyncGenerator, List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 
+from cua_agent import ComputerAgent
 from computer import Computer
-from agent import ComputerAgent
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -35,7 +35,7 @@ class AgentService:
     
     def __init__(
         self,
-        model: str = "cua/anthropic/claude-haiku-4.5",
+        model: str = "cua/anthropic/gpt-4o-mini",
         temperature: float = 0.7,
         os_type: str = "linux",
         provider_type: str = "docker",
