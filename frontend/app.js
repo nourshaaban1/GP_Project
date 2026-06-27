@@ -63,6 +63,20 @@ function setupEventListeners() {
 
     // Clear downloads
     elements.clearDownloads.addEventListener('click', clearDownloads);
+
+    // Click handler for suggestion cards
+    elements.messages.addEventListener('click', (e) => {
+        const card = e.target.closest('.suggestion-card');
+        if (card && !elements.messageInput.disabled) {
+            const prompt = card.getAttribute('data-prompt');
+            if (prompt) {
+                elements.messageInput.value = prompt;
+                elements.messageInput.focus();
+                // Trigger auto-resize input event
+                elements.messageInput.dispatchEvent(new Event('input'));
+            }
+        }
+    });
 }
 
 /**
@@ -247,8 +261,12 @@ function appendAgentMessage(text) {
     const messageEl = document.createElement('div');
     messageEl.className = 'message agent-message';
     messageEl.innerHTML = `
-        <div class="message-avatar">🤖</div>
+        <div class="message-avatar">🪐</div>
         <div class="message-content">
+            <div class="agent-header">
+                <span class="agent-header-orb"></span>
+                <span>Notive</span>
+            </div>
             <div class="message-text">${escapeHtml(text)}</div>
             <div class="message-time">${formatTime(new Date())}</div>
         </div>
@@ -265,7 +283,7 @@ function appendStatusMessage(text) {
     const statusEl = document.createElement('div');
     statusEl.className = 'status-message';
     statusEl.innerHTML = `
-        <span class="status-icon">⚙️</span>
+        <span class="status-icon">✦</span>
         <span class="status-content">${escapeHtml(text)}</span>
     `;
 

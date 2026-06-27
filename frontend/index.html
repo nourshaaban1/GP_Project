@@ -5,8 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src ws://localhost:8000 http://localhost:8000; style-src 'self' 'unsafe-inline'; script-src 'self';">
-    <title>Computer-Use Agent</title>
+        content="default-src 'self'; connect-src ws://localhost:8000 http://localhost:8000; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self';">
+    <title>Notive - AI Computer-Use Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -15,7 +18,11 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <h1 class="title">Notive</h1>
+                <div class="logo-area">
+                    <span class="logo-orb"></span>
+                    <h1 class="title">Notive</h1>
+                    <span class="logo-badge">Agent v1.0</span>
+                </div>
                 <div class="connection-status" id="connectionStatus">
                     <span class="status-dot"></span>
                     <span class="status-text">Disconnected</span>
@@ -26,17 +33,50 @@
         <!-- Chat Container -->
         <main class="chat-container" id="chatContainer">
             <div class="messages" id="messages">
-                <!-- Messages will be dynamically added here -->
-                <div class="welcome-message">
-                    <div class="welcome-icon">🤖</div>
-                    <h2>Welcome to Notive</h2>
-                    <p>I can control a computer to help you with various tasks. Try asking me to:</p>
-                    <ul>
-                        <li>Open a browser and search for something</li>
-                        <li>Create and edit files</li>
-                        <li>Navigate the file system</li>
-                        <li>Run terminal commands</li>
-                    </ul>
+                <!-- Welcome Message / Setup -->
+                <div class="welcome-message" id="welcomeMessage">
+                    <div class="welcome-header">
+                        <div class="welcome-avatar-glow">
+                            <span class="agent-avatar-emoji">🪐</span>
+                            <div class="sonar-wave"></div>
+                        </div>
+                        <h2>Meet Notive</h2>
+                        <p class="welcome-subtitle">Your autonomous AI assistant that controls a virtual Linux desktop to get things done.</p>
+                    </div>
+                    
+                    <div class="suggestions-section">
+                        <h3>What would you like me to do?</h3>
+                        <div class="suggestions-grid">
+                            <button class="suggestion-card" data-prompt="Open firefox and search for the latest news about space exploration.">
+                                <span class="suggestion-icon">🚀</span>
+                                <div class="suggestion-text-wrapper">
+                                    <div class="suggestion-title">Research Space News</div>
+                                    <div class="suggestion-desc">Opens browser & queries space updates</div>
+                                </div>
+                            </button>
+                            <button class="suggestion-card" data-prompt="Create a python script named fib.py that computes the first 20 fibonacci numbers, runs it, and saves the output to a text file.">
+                                <span class="suggestion-icon">🐍</span>
+                                <div class="suggestion-text-wrapper">
+                                    <div class="suggestion-title">Write Python Script</div>
+                                    <div class="suggestion-desc">Creates, runs, and saves a Fibonacci file</div>
+                                </div>
+                            </button>
+                            <button class="suggestion-card" data-prompt="Go to terminal, find out what system specifications are in this environment, and write it down.">
+                                <span class="suggestion-icon">💻</span>
+                                <div class="suggestion-text-wrapper">
+                                    <div class="suggestion-title">Inspect Sandbox Specs</div>
+                                    <div class="suggestion-desc">Check CPU/Memory info in terminal</div>
+                                </div>
+                            </button>
+                            <button class="suggestion-card" data-prompt="Open firefox, download this file https://ontheline.trincoll.edu/images/bookdown/sample-local-pdf.pdf, summarize it, and save to summary.txt">
+                                <span class="suggestion-icon">📊</span>
+                                <div class="suggestion-text-wrapper">
+                                    <div class="suggestion-title">Process & Summarize PDF</div>
+                                    <div class="suggestion-desc">Downloads local PDF file and extracts text</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -55,7 +95,7 @@
         <!-- Input Container -->
         <footer class="input-container">
             <div class="input-wrapper">
-                <textarea id="messageInput" placeholder="Type your instruction for the agent..." rows="1"
+                <textarea id="messageInput" placeholder="Type your instruction for Notive..." rows="1"
                     disabled></textarea>
                 <button id="sendButton" class="send-button" disabled>
                     <span class="send-icon">➤</span>
