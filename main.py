@@ -21,7 +21,7 @@ async def main():
 
     try:
         agent = ComputerAgent(
-             model="cua/anthropic/claude-haiku-4.5",
+            model="cua/anthropic/claude-3-5-sonnet-20241022",
             tools=[computer],
             temperature=0.7,
         )

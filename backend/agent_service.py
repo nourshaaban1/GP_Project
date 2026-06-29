@@ -35,7 +35,7 @@ class AgentService:
     
     def __init__(
         self,
-        model: str = "cua/anthropic/gpt-4o-mini",
+        model: str = "cua/anthropic/claude-3-5-sonnet-20241022",
         temperature: float = 0.7,
         os_type: str = "linux",
         provider_type: str = "docker",
@@ -133,57 +133,104 @@ class AgentService:
                     item_type = item.get("type")
                     
                     if item_type == "message":
-                        # Extract and stream text content from message
+                        # Extract and stream text content from message.
+                        # The actual content type from cua_agent is "output_text", NOT "text".
                         content = item.get("content", [])
                         for content_item in content:
-                            if content_item.get("type") == "text":
-                                text = content_item.get("text", "")
-                                # Log to console
-                                logger.info(f"Agent message: {text}")
-                                # Stream to client
-                                yield {
-                                    "type": "agent",
-                                    "text": text
-                                }
+                            # Handle both "output_text" (cua_agent native) and "text" (fallback)
+                            if content_item.get("type") in ("output_text", "text"):
+                                text = content_item.get("text", "").strip()
+                                if text:
+                                    logger.info(f"Agent message: {text}")
+                                    yield {
+                                        "type": "agent",
+                                        "text": text
+                                    }
                     
-                    elif item_type == "tool_use":
-                        # Report tool usage
-                        tool_name = item.get("name", "unknown")
-                        tool_input = item.get("input", {})
-                        logger.info(f"Tool use: {tool_name} - {tool_input}")
+                    elif item_type == "reasoning":
+                        # Stream agent reasoning/thinking steps.
+                        # These are the internal thought steps the model reports.
+                        summary = item.get("summary", [])
+                        for summary_item in summary:
+                            if summary_item.get("type") == "summary_text":
+                                reasoning_text = summary_item.get("text", "").strip()
+                                if reasoning_text:
+                                    logger.info(f"Agent reasoning: {reasoning_text}")
+                                    yield {
+                                        "type": "agent",
+                                        "text": reasoning_text
+                                    }
+                    
+                    elif item_type == "computer_call":
+                        # The real action type is "computer_call", NOT "tool_use".
+                        # Build a human-readable description of what the agent is doing.
+                        action = item.get("action", {})
+                        action_type = action.get("type", "unknown")
+                        
+                        action_descriptions = {
+                            "screenshot": "Taking a screenshot to observe the screen",
+                            "click": f"Clicking at position ({action.get('x', '?')}, {action.get('y', '?')})",
+                            "double_click": f"Double-clicking at position ({action.get('x', '?')}, {action.get('y', '?')})",
+                            "right_click": f"Right-clicking at position ({action.get('x', '?')}, {action.get('y', '?')})",
+                            "type": f"Typing: \"{action.get('text', '')}\"",
+                            "keypress": f"Pressing keys: {'+'.join(action.get('keys', []))}",
+                            "scroll": f"Scrolling at ({action.get('x', '?')}, {action.get('y', '?')})",
+                            "move": f"Moving mouse to ({action.get('x', '?')}, {action.get('y', '?')})",
+                            "drag": "Dragging element on screen",
+                            "wait": "Waiting for the screen to update",
+                            "left_mouse_down": "Pressing mouse button down",
+                            "left_mouse_up": "Releasing mouse button",
+                            "terminate": "Task complete — stopping execution",
+                        }
+                        
+                        description = action_descriptions.get(
+                            action_type,
+                            f"Performing action: {action_type}"
+                        )
+                        
+                        logger.info(f"Computer action: {action_type} — {action}")
                         yield {
                             "type": "status",
-                            "text": f"Using tool: {tool_name}"
+                            "text": description
                         }
                     
-                    elif item_type == "tool_result":
-                        # Stream tool results
-                        tool_output = item.get("output", "")
-                        tool_content = item.get("content", [])
+                    elif item_type in ("computer_call_output", "function_call_output"):
+                        # The real output types are "computer_call_output" and "function_call_output",
+                        # NOT "tool_result". These contain the screenshot or text result of an action.
+                        output = item.get("output", "")
                         
-                        # Log the tool result
-                        logger.info(f"Tool result: {tool_output}")
+                        # Skip screenshot outputs (base64 images) — too large to stream as text
+                        if isinstance(output, dict) and output.get("type") == "input_image":
+                            logger.debug("Received screenshot output (skipping stream)")
+                            continue
                         
-                        # Check for text content in tool result
-                        for content_item in tool_content:
-                            if isinstance(content_item, dict):
-                                if content_item.get("type") == "text":
-                                    result_text = content_item.get("text", "")
-                                    yield {
-                                        "type": "tool_result",
-                                        "text": result_text
-                                    }
-                        
-                        # Check for file creation
-                        if isinstance(tool_output, str) and "created" in tool_output.lower():
+                        # For text outputs (e.g., terminal results, error messages)
+                        if isinstance(output, str) and output.strip():
+                            logger.info(f"Tool output: {output}")
                             yield {
-                                "type": "file_created",
-                                "path": tool_output
+                                "type": "tool_result",
+                                "text": output
                             }
+                            
+                            # Also check if a file was created
+                            if "created" in output.lower():
+                                yield {
+                                    "type": "file_created",
+                                    "path": output
+                                }
+                    
+                    elif item_type == "function_call":
+                        # A named function tool was called (not a computer action)
+                        func_name = item.get("name", "unknown")
+                        logger.info(f"Function call: {func_name}")
+                        yield {
+                            "type": "status",
+                            "text": f"Calling function: {func_name}"
+                        }
                     
                     else:
-                        # Log any other item types
-                        logger.info(f"Other output item: {item_type} - {item}")
+                        # Log any unrecognised item types for future debugging
+                        logger.info(f"Unhandled output item type: '{item_type}' — {item}")
             
             logger.info("Agent run completed successfully")
             
