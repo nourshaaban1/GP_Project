@@ -4,16 +4,20 @@ Agent Service Layer
 Encapsulates Computer and ComputerAgent lifecycle management.
 Provides async streaming interface for agent output.
 Guarantees cleanup on error or completion.
+Supports chat history persistence.
 """
 
 import os
 import logging
 from typing import AsyncGenerator, List, Dict, Any, Optional
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from cua_agent import ComputerAgent
 from computer import Computer
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+from database import Message
 
 # Load environment variables
 load_dotenv()
@@ -21,6 +25,19 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Load OpenRouter configuration from environment
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openrouter")
+LLM_BASE_MODEL = os.getenv("LLM_MODEL", "z-ai/glm-5.2")
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "3000"))
+
+# Set the API key for OpenRouter (required for litellm to route correctly)
+if OPENROUTER_API_KEY:
+    os.environ["OPENROUTER_API_KEY"] = OPENROUTER_API_KEY
+else:
+    logger.warning("OPENROUTER_API_KEY not found in environment. Agent may fail to initialize.")
 
 
 class AgentService:
@@ -35,8 +52,9 @@ class AgentService:
     
     def __init__(
         self,
-        model: str = "cua/anthropic/claude-3-5-sonnet-20241022",
-        temperature: float = 0.7,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         os_type: str = "linux",
         provider_type: str = "docker",
         image: str = "trycua/cua-xfce:latest"
@@ -45,14 +63,23 @@ class AgentService:
         Initialize agent service configuration.
         
         Args:
-            model: The AI model to use for the agent
-            temperature: Model temperature for response generation
+            model: The AI model to use. If None, uses LLM_BASE_MODEL from env.
+                   Will be formatted as openrouter/{model} for litellm routing.
+            temperature: Model temperature for response generation. If None, uses LLM_TEMPERATURE.
+            max_tokens: Max tokens for model response. If None, uses LLM_MAX_TOKENS.
             os_type: Operating system type for the computer sandbox
             provider_type: Provider type (docker, etc.)
             image: Docker image for the sandbox
         """
-        self.model = model
-        self.temperature = temperature
+        # Use environment variables as defaults, allow overrides
+        base_model = model or LLM_BASE_MODEL
+        self.temperature = temperature if temperature is not None else LLM_TEMPERATURE
+        self.max_tokens = max_tokens if max_tokens is not None else LLM_MAX_TOKENS
+        
+        # Format model string for litellm: must use "openrouter/{model_id}" format
+        # This tells litellm to route to OpenRouter API instead of other providers
+        self.model = f"openrouter/{base_model}" if not base_model.startswith("openrouter/") else base_model
+        
         self.os_type = os_type
         self.provider_type = provider_type
         self.image = image
@@ -61,10 +88,9 @@ class AgentService:
         self._agent: Optional[ComputerAgent] = None
         self._is_running: bool = False
         
-        # Ensure API key is set
-        api_key = os.getenv("CUA_API_KEY")
-        if api_key:
-            os.environ["CUA_API_KEY"] = api_key
+        logger.info(f"AgentService initialized with model: {self.model}")
+        logger.info(f"  Temperature: {self.temperature}, Max Tokens: {self.max_tokens}")
+        logger.info(f"  Provider: {LLM_PROVIDER}")
     
     async def start(self) -> None:
         """
@@ -92,6 +118,7 @@ class AgentService:
                 model=self.model,
                 tools=[self._computer],
                 temperature=self.temperature,
+                max_tokens=self.max_tokens,
             )
             
             self._is_running = True
@@ -102,15 +129,48 @@ class AgentService:
             await self.stop()
             raise
     
+    def _persist_message(
+        self,
+        db: Optional[Session],
+        session_id: Optional[int],
+        role: str,
+        content: str,
+        message_type: str = "message",
+    ) -> None:
+        """
+        Persist a single chat message to the database, if a db session and
+        chat session_id were provided to run_agent. No-op otherwise so
+        run_agent can be used without history persistence.
+        """
+        if db is None or session_id is None or not content:
+            return
+        try:
+            db.add(Message(
+                session_id=session_id,
+                role=role,
+                content=content,
+                message_type=message_type,
+            ))
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to persist message (session_id={session_id}): {e}")
+            db.rollback()
+
     async def run_agent(
         self,
-        messages: List[Dict[str, Any]]
+        messages: List[Dict[str, Any]],
+        db: Optional[Session] = None,
+        session_id: Optional[int] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Run the agent with the given messages and stream output.
         
         Args:
             messages: List of message dictionaries with 'role' and 'content'
+            db: Optional SQLAlchemy session. If provided together with
+                session_id, every streamed message is persisted to the
+                Message table as it's yielded.
+            session_id: Optional ChatSession.id to persist messages under.
         
         Yields:
             Dict with 'type' and 'text' or other relevant data
@@ -142,6 +202,7 @@ class AgentService:
                                 text = content_item.get("text", "").strip()
                                 if text:
                                     logger.info(f"Agent message: {text}")
+                                    self._persist_message(db, session_id, "agent", text, "agent")
                                     yield {
                                         "type": "agent",
                                         "text": text
@@ -156,6 +217,7 @@ class AgentService:
                                 reasoning_text = summary_item.get("text", "").strip()
                                 if reasoning_text:
                                     logger.info(f"Agent reasoning: {reasoning_text}")
+                                    self._persist_message(db, session_id, "agent", reasoning_text, "agent")
                                     yield {
                                         "type": "agent",
                                         "text": reasoning_text
@@ -189,6 +251,7 @@ class AgentService:
                         )
                         
                         logger.info(f"Computer action: {action_type} — {action}")
+                        self._persist_message(db, session_id, "agent", description, "status")
                         yield {
                             "type": "status",
                             "text": description
@@ -207,6 +270,7 @@ class AgentService:
                         # For text outputs (e.g., terminal results, error messages)
                         if isinstance(output, str) and output.strip():
                             logger.info(f"Tool output: {output}")
+                            self._persist_message(db, session_id, "agent", output, "tool_result")
                             yield {
                                 "type": "tool_result",
                                 "text": output
