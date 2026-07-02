@@ -9,102 +9,164 @@
     <title>Notive - AI Computer-Use Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-    <div class="app-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo-area">
-                    <span class="logo-orb"></span>
-                    <h1 class="title">Notive</h1>
-                    <span class="logo-badge">Agent v1.0</span>
-                </div>
-                <div class="connection-status" id="connectionStatus">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Disconnected</span>
-                </div>
+    <!-- Auth Screen (shown until a valid token is present) -->
+    <div class="auth-screen" id="authScreen">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <span class="logo-orb"></span>
+                <h1>Notive</h1>
             </div>
-        </header>
 
-        <!-- Chat Container -->
-        <main class="chat-container" id="chatContainer">
-            <div class="messages" id="messages">
-                <!-- Welcome Message / Setup -->
-                <div class="welcome-message" id="welcomeMessage">
-                    <div class="welcome-header">
-                        <div class="welcome-avatar-glow">
-                            <span class="agent-avatar-emoji">🪐</span>
-                            <div class="sonar-wave"></div>
-                        </div>
-                        <h2>Meet Notive</h2>
-                        <p class="welcome-subtitle">Your autonomous AI assistant that controls a virtual Linux desktop to get things done.</p>
-                    </div>
-                    
-                    <div class="suggestions-section">
-                        <h3>What would you like me to do?</h3>
-                        <div class="suggestions-grid">
-                            <button class="suggestion-card" data-prompt="Open firefox and search for the latest news about space exploration.">
-                                <span class="suggestion-icon">🚀</span>
-                                <div class="suggestion-text-wrapper">
-                                    <div class="suggestion-title">Research Space News</div>
-                                    <div class="suggestion-desc">Opens browser & queries space updates</div>
-                                </div>
-                            </button>
-                            <button class="suggestion-card" data-prompt="Create a python script named fib.py that computes the first 20 fibonacci numbers, runs it, and saves the output to a text file.">
-                                <span class="suggestion-icon">🐍</span>
-                                <div class="suggestion-text-wrapper">
-                                    <div class="suggestion-title">Write Python Script</div>
-                                    <div class="suggestion-desc">Creates, runs, and saves a Fibonacci file</div>
-                                </div>
-                            </button>
-                            <button class="suggestion-card" data-prompt="Go to terminal, find out what system specifications are in this environment, and write it down.">
-                                <span class="suggestion-icon">💻</span>
-                                <div class="suggestion-text-wrapper">
-                                    <div class="suggestion-title">Inspect Sandbox Specs</div>
-                                    <div class="suggestion-desc">Check CPU/Memory info in terminal</div>
-                                </div>
-                            </button>
-                            <button class="suggestion-card" data-prompt="Open firefox, download this file https://ontheline.trincoll.edu/images/bookdown/sample-local-pdf.pdf, summarize it, and save to summary.txt">
-                                <span class="suggestion-icon">📊</span>
-                                <div class="suggestion-text-wrapper">
-                                    <div class="suggestion-title">Process & Summarize PDF</div>
-                                    <div class="suggestion-desc">Downloads local PDF file and extracts text</div>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab active" data-tab="login">Sign In</button>
+                <button type="button" class="auth-tab" data-tab="register">Create Account</button>
             </div>
-        </main>
 
-        <!-- Downloads Section (appears when files are created) -->
-        <div class="downloads-section" id="downloadsSection" style="display: none;">
-            <div class="downloads-header">
-                <span>📁 Available Downloads</span>
-                <button class="clear-downloads-btn" id="clearDownloads" title="Clear downloads">✕</button>
-            </div>
-            <div class="downloads-list" id="downloadsList">
-                <!-- Download links will be dynamically added here -->
-            </div>
+            <form id="loginForm" class="auth-form">
+                <input type="text" id="loginUsername" placeholder="Username" autocomplete="username" required>
+                <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password"
+                    required>
+                <button type="submit" class="auth-submit" id="loginSubmit">Sign In</button>
+            </form>
+
+            <form id="registerForm" class="auth-form" style="display: none;">
+                <input type="text" id="registerUsername" placeholder="Username" autocomplete="username" required>
+                <input type="email" id="registerEmail" placeholder="Email (optional)" autocomplete="email">
+                <input type="password" id="registerPassword" placeholder="Password (min 8 characters)"
+                    autocomplete="new-password" minlength="8" required>
+                <button type="submit" class="auth-submit" id="registerSubmit">Create Account</button>
+            </form>
+
+            <div class="auth-error" id="authError" style="display: none;"></div>
         </div>
+    </div>
 
-        <!-- Input Container -->
-        <footer class="input-container">
-            <div class="input-wrapper">
-                <textarea id="messageInput" placeholder="Type your instruction for Notive..." rows="1"
-                    disabled></textarea>
-                <button id="sendButton" class="send-button" disabled>
-                    <span class="send-icon">➤</span>
-                </button>
+    <!-- App Shell: sidebar + chat, hidden until authenticated -->
+    <div class="app-shell" id="appShell" style="display: none;">
+
+        <!-- Session Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="new-chat-btn" id="newChatBtn">
+                <span>＋</span> New Chat
+            </button>
+
+            <div class="session-list" id="sessionList">
+                <div class="session-list-empty">No previous chats yet</div>
             </div>
-            <div class="input-hint" id="inputHint">
-                Connecting to agent...
+
+            <div class="sidebar-footer">
+                <div class="user-chip">
+                    <span class="user-avatar">👤</span>
+                    <span class="user-name" id="currentUsername"></span>
+                </div>
+                <button class="logout-btn" id="logoutBtn" title="Sign out">⎋</button>
             </div>
-        </footer>
+        </aside>
+
+        <div class="app-container">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-content">
+                    <div class="logo-area">
+                        <span class="logo-orb"></span>
+                        <h1 class="title">Notive</h1>
+                        <span class="logo-badge">Agent v1.0</span>
+                    </div>
+                    <div class="connection-status" id="connectionStatus">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Disconnected</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Chat Container -->
+            <main class="chat-container" id="chatContainer">
+                <div class="messages" id="messages">
+                    <!-- Welcome Message / Setup -->
+                    <div class="welcome-message" id="welcomeMessage">
+                        <div class="welcome-header">
+                            <div class="welcome-avatar-glow">
+                                <span class="agent-avatar-emoji">🪐</span>
+                                <div class="sonar-wave"></div>
+                            </div>
+                            <h2>Meet Notive</h2>
+                            <p class="welcome-subtitle">Your autonomous AI assistant that controls a virtual Linux
+                                desktop to get things done.</p>
+                        </div>
+
+                        <div class="suggestions-section">
+                            <h3>What would you like me to do?</h3>
+                            <div class="suggestions-grid">
+                                <button class="suggestion-card"
+                                    data-prompt="Open firefox and search for the latest news about space exploration.">
+                                    <span class="suggestion-icon">🚀</span>
+                                    <div class="suggestion-text-wrapper">
+                                        <div class="suggestion-title">Research Space News</div>
+                                        <div class="suggestion-desc">Opens browser & queries space updates</div>
+                                    </div>
+                                </button>
+                                <button class="suggestion-card"
+                                    data-prompt="Create a python script named fib.py that computes the first 20 fibonacci numbers, runs it, and saves the output to a text file.">
+                                    <span class="suggestion-icon">🐍</span>
+                                    <div class="suggestion-text-wrapper">
+                                        <div class="suggestion-title">Write Python Script</div>
+                                        <div class="suggestion-desc">Creates, runs, and saves a Fibonacci file</div>
+                                    </div>
+                                </button>
+                                <button class="suggestion-card"
+                                    data-prompt="Go to terminal, find out what system specifications are in this environment, and write it down.">
+                                    <span class="suggestion-icon">💻</span>
+                                    <div class="suggestion-text-wrapper">
+                                        <div class="suggestion-title">Inspect Sandbox Specs</div>
+                                        <div class="suggestion-desc">Check CPU/Memory info in terminal</div>
+                                    </div>
+                                </button>
+                                <button class="suggestion-card"
+                                    data-prompt="Open firefox, download this file https://ontheline.trincoll.edu/images/bookdown/sample-local-pdf.pdf, summarize it, and save to summary.txt">
+                                    <span class="suggestion-icon">📊</span>
+                                    <div class="suggestion-text-wrapper">
+                                        <div class="suggestion-title">Process & Summarize PDF</div>
+                                        <div class="suggestion-desc">Downloads local PDF file and extracts text</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Downloads Section (appears when files are created) -->
+            <div class="downloads-section" id="downloadsSection" style="display: none;">
+                <div class="downloads-header">
+                    <span>📁 Available Downloads</span>
+                    <button class="clear-downloads-btn" id="clearDownloads" title="Clear downloads">✕</button>
+                </div>
+                <div class="downloads-list" id="downloadsList">
+                    <!-- Download buttons will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Input Container -->
+            <footer class="input-container">
+                <div class="input-wrapper">
+                    <textarea id="messageInput" placeholder="Type your instruction for Notive..." rows="1"
+                        disabled></textarea>
+                    <button id="sendButton" class="send-button" disabled>
+                        <span class="send-icon">➤</span>
+                    </button>
+                </div>
+                <div class="input-hint" id="inputHint">
+                    Connecting to agent...
+                </div>
+            </footer>
+        </div>
     </div>
 
     <script src="app.js"></script>
