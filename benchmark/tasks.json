@@ -1,0 +1,20 @@
+[
+    {
+        "id": "github_navigation",
+        "input": "Open the browser and navigate to GitHub.",
+        "type": "text_task"
+    },
+    {
+        "id": "ml_tutorials_search",
+        "input": "Search Google for \"machine learning tutorials\" and save the titles of the first three search results to a text file named ml_tutorials.txt.",
+        "expected_files": [
+            "ml_tutorials.txt"
+        ],
+        "type": "file_task"
+    },
+    {
+        "id": "google_classroom_announcements",
+        "input": "Open the browser, navigate to Google Classroom, and check for any new announcements in the pattern recognitiion subject",
+        "type": "text_task"
+    }
+]

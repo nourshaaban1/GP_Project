@@ -26,18 +26,60 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load OpenRouter configuration from environment
+# Load LLM configuration from environment.
+#
+# IMPORTANT: cua's ComputerAgent only knows how to translate model output into
+# computer_call actions (click/type/screenshot/etc.) for a specific set of
+# model families:
+#   - Anthropic's native computer-use models (model string starts with "anthropic/")
+#   - OpenAI's "openai/computer-use-preview"
+#   - A small set of OpenRouter-hosted GUI-grounding models (e.g. "openrouter/z-ai/glm-4.5v")
+#
+# A generic chat/reasoning model (e.g. "z-ai/glm-5.2") is NOT in that list, so
+# the agent silently falls back to a plain chat completion with no computer-use
+# tool schema at all — the model has no idea it has a screen/mouse/keyboard and
+# will just respond like a normal chatbot ("I can't browse the web").
+#
+# Default here is Claude Sonnet, called directly via the Anthropic API (NOT
+# routed through OpenRouter), since that's the officially supported
+# computer-use path.
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openrouter")
-LLM_BASE_MODEL = os.getenv("LLM_MODEL", "z-ai/glm-5.2")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
+# Default model: prefer native Anthropic computer-use if a key is present,
+# otherwise fall back to the one model cua actually supports for real
+# computer-use THROUGH OpenRouter (a GUI-grounding vision model — not to be
+# confused with the plain chat model "glm-5.2", which has no computer-use
+# support at all and will just answer like a normal chatbot).
+_DEFAULT_ANTHROPIC_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+_DEFAULT_OPENROUTER_MODEL = "openrouter/z-ai/glm-4.5v"
+
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic" if ANTHROPIC_API_KEY else "openrouter")
+LLM_BASE_MODEL = os.getenv(
+    "LLM_MODEL",
+    _DEFAULT_ANTHROPIC_MODEL if ANTHROPIC_API_KEY else _DEFAULT_OPENROUTER_MODEL,
+)
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "3000"))
 
-# Set the API key for OpenRouter (required for litellm to route correctly)
+# Set API keys for litellm. We support two paths:
+#   1. Native Anthropic models (model string starts with "anthropic/") -> needs ANTHROPIC_API_KEY
+#   2. Everything else -> routed through OpenRouter -> needs OPENROUTER_API_KEY
+if ANTHROPIC_API_KEY:
+    os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
+else:
+    logger.warning(
+        "ANTHROPIC_API_KEY not found in environment. Required if LLM_MODEL "
+        "starts with 'anthropic/' (the default)."
+    )
+
 if OPENROUTER_API_KEY:
     os.environ["OPENROUTER_API_KEY"] = OPENROUTER_API_KEY
 else:
-    logger.warning("OPENROUTER_API_KEY not found in environment. Agent may fail to initialize.")
+    logger.warning(
+        "OPENROUTER_API_KEY not found in environment. Required if LLM_MODEL "
+        "does not start with 'anthropic/'."
+    )
 
 
 class AgentService:
@@ -64,7 +106,8 @@ class AgentService:
         
         Args:
             model: The AI model to use. If None, uses LLM_BASE_MODEL from env.
-                   Will be formatted as openrouter/{model} for litellm routing.
+                   "anthropic/..." models are called directly via the Anthropic
+                   API; everything else is routed through OpenRouter.
             temperature: Model temperature for response generation. If None, uses LLM_TEMPERATURE.
             max_tokens: Max tokens for model response. If None, uses LLM_MAX_TOKENS.
             os_type: Operating system type for the computer sandbox
@@ -76,9 +119,21 @@ class AgentService:
         self.temperature = temperature if temperature is not None else LLM_TEMPERATURE
         self.max_tokens = max_tokens if max_tokens is not None else LLM_MAX_TOKENS
         
-        # Format model string for litellm: must use "openrouter/{model_id}" format
-        # This tells litellm to route to OpenRouter API instead of other providers
-        self.model = f"openrouter/{base_model}" if not base_model.startswith("openrouter/") else base_model
+        # Format model string for litellm.
+        #
+        # Native Anthropic computer-use models must keep the bare "anthropic/"
+        # prefix and go straight to the Anthropic API — this is what triggers
+        # cua's native computer-use action-translation path. Routing Claude
+        # through OpenRouter (i.e. "openrouter/anthropic/...") breaks that
+        # detection and silently degrades the agent to a plain chatbot with
+        # no tool access, which is what was happening before this fix.
+        #
+        # Everything else (GLM, GPT, etc.) is routed through OpenRouter as
+        # before, unless it's already explicitly prefixed.
+        if base_model.startswith("anthropic/") or base_model.startswith("openrouter/"):
+            self.model = base_model
+        else:
+            self.model = f"openrouter/{base_model}"
         
         self.os_type = os_type
         self.provider_type = provider_type

@@ -48,6 +48,11 @@ class CreateSessionRequest(BaseModel):
     """Body for POST /sessions. Same query-param issue as RegisterRequest."""
     title: str
 
+
+class RenameSessionRequest(BaseModel):
+    """Body for PATCH /sessions/{id}."""
+    title: str
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -219,6 +224,68 @@ async def get_session_messages(session_id: int,
         }
         for msg in messages
     ]
+
+@app.patch("/sessions/{session_id}")
+async def rename_session(session_id: int, payload: RenameSessionRequest,
+                        current_user: str = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    """Rename a chat session belonging to the current user."""
+    user = db.query(User).filter(User.username == current_user).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+
+    session.title = title[:200]  # guard against unbounded titles
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "id": session.id,
+        "title": session.title,
+        "updated_at": session.updated_at.isoformat() if session.updated_at else None
+    }
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: int,
+                        current_user: str = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    """
+    Delete a chat session and all of its messages.
+
+    Note: if a WebSocket is currently attached to this session
+    (chat_session_id in an active /ws/chat connection), that connection
+    keeps its in-memory reference and will keep streaming/persisting
+    until it errors out on its next DB write, since there's no live
+    registry from session_id -> active socket to interrupt it. Deleting
+    a session you're not actively chatting in is safe.
+    """
+    user = db.query(User).filter(User.username == current_user).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    db.delete(session)  # cascades to Message rows via the ORM relationship
+    db.commit()
+
+    return {"message": "Session deleted", "id": session_id}
 
 # Configure CORS for Electron frontend
 app.add_middleware(

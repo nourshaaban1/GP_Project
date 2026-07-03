@@ -215,7 +215,7 @@ You need **two processes** running: the backend, then the desktop app.
 # with uv
 uv run python main.py
 # or, with your venv active
-python main.py
+python main.py / uvicorn main:app --reload --port 8000
 ```
 
 This starts Uvicorn on `http://localhost:8000`, creates `chat_history.db` and

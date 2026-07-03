@@ -350,9 +350,23 @@ function setupAppEventListeners() {
     elements.newChatBtn.addEventListener('click', startNewChat);
 
     elements.sessionList.addEventListener('click', (e) => {
-        const item = e.target.closest('.session-item');
-        if (item && item.dataset.sessionId) {
-            selectSession(Number(item.dataset.sessionId));
+        const renameBtn = e.target.closest('.rename-btn');
+        if (renameBtn && renameBtn.dataset.sessionId) {
+            e.stopPropagation();
+            startRenameSession(Number(renameBtn.dataset.sessionId));
+            return;
+        }
+
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn && deleteBtn.dataset.sessionId) {
+            e.stopPropagation();
+            handleDeleteSession(Number(deleteBtn.dataset.sessionId));
+            return;
+        }
+
+        const main = e.target.closest('.session-item-main');
+        if (main && main.dataset.sessionId) {
+            selectSession(Number(main.dataset.sessionId));
         }
     });
 }
@@ -387,14 +401,124 @@ function renderSessionList() {
         .map((s) => {
             const active = s.id === currentSessionId ? ' active' : '';
             const time = s.updated_at ? formatTime(new Date(s.updated_at)) : '';
+            const safeTitle = escapeHtml(s.title || 'Untitled chat');
             return `
                 <div class="session-item${active}" data-session-id="${s.id}">
-                    <div class="session-item-title">${escapeHtml(s.title || 'Untitled chat')}</div>
-                    <div class="session-item-time">${time}</div>
+                    <div class="session-item-main" data-session-id="${s.id}">
+                        <div class="session-item-title" data-session-id="${s.id}">${safeTitle}</div>
+                        <div class="session-item-time">${time}</div>
+                    </div>
+                    <div class="session-item-actions">
+                        <button type="button" class="session-action-btn rename-btn" data-session-id="${s.id}" title="Rename chat">✎</button>
+                        <button type="button" class="session-action-btn delete-btn" data-session-id="${s.id}" title="Delete chat">🗑</button>
+                    </div>
                 </div>
             `;
         })
         .join('');
+}
+
+/**
+ * Swap a session's title for an inline <input> so it can be renamed
+ * without leaving the sidebar. Commits on Enter/blur, cancels on Escape.
+ */
+function startRenameSession(id) {
+    const titleEl = elements.sessionList.querySelector(
+        `.session-item-title[data-session-id="${id}"]`
+    );
+    const session = sessionsCache.find((s) => s.id === id);
+    if (!titleEl || !session) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'session-rename-input';
+    input.value = session.title || '';
+    input.maxLength = 200;
+
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let settled = false;
+
+    const commit = async () => {
+        if (settled) return;
+        settled = true;
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== session.title) {
+            await renameSession(id, newTitle);
+        } else {
+            renderSessionList(); // no real change — just redraw normally
+        }
+    };
+
+    const cancel = () => {
+        if (settled) return;
+        settled = true;
+        renderSessionList();
+    };
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+        }
+    });
+
+    input.addEventListener('blur', commit);
+}
+
+async function renameSession(id, title) {
+    try {
+        const res = await authFetch(`/sessions/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title })
+        });
+        if (!res.ok) {
+            throw new Error((await safeErrorDetail(res)) || `Rename failed (${res.status})`);
+        }
+        await loadSessions(); // re-pull from server so truncation/formatting stays authoritative
+    } catch (err) {
+        console.error('Failed to rename session:', err);
+        appendErrorMessage(`Failed to rename chat: ${err.message}`);
+        renderSessionList();
+    }
+}
+
+async function handleDeleteSession(id) {
+    const session = sessionsCache.find((s) => s.id === id);
+    const label = session ? session.title || 'Untitled chat' : 'this chat';
+
+    const confirmed = window.confirm(`Delete "${label}"? This can't be undone.`);
+    if (!confirmed) return;
+
+    try {
+        const res = await authFetch(`/sessions/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            throw new Error((await safeErrorDetail(res)) || `Delete failed (${res.status})`);
+        }
+
+        sessionsCache = sessionsCache.filter((s) => s.id !== id);
+
+        if (id === currentSessionId) {
+            // selectSession/startNewChat already close the socket, clear the
+            // chat pane, and re-render the sidebar — no need to do it twice.
+            if (sessionsCache.length > 0) {
+                await selectSession(sessionsCache[0].id);
+            } else {
+                startNewChat();
+            }
+        } else {
+            renderSessionList();
+        }
+    } catch (err) {
+        console.error('Failed to delete session:', err);
+        appendErrorMessage(`Failed to delete chat: ${err.message}`);
+    }
 }
 
 async function selectSession(id) {

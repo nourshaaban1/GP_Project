@@ -29,7 +29,11 @@ class ChatSession(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="sessions")
-    messages = relationship("Message", back_populates="session")
+    messages = relationship(
+        "Message",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
 
 class Message(Base):
     __tablename__ = "messages"
